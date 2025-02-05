@@ -1,10 +1,13 @@
+
 export interface Proposal {
   id: string;
   title: string;
   description: string;
-  votesFor: number;
-  votesAgainst: number;
+  votes_for: number;
+  votes_against: number;
   deadline: Date;
+  created_at?: Date;
+  updated_at?: Date;
 }
 
 export interface BlockchainTransaction {

@@ -1,26 +1,11 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import ProposalCard from "./ProposalCard";
 import BlockchainDisplay from "./BlockchainDisplay";
 import type { Proposal, BlockchainTransaction } from "@/lib/types";
-
-const mockProposals: Proposal[] = [
-  {
-    id: "1",
-    title: "Community Fund Allocation",
-    description: "Proposal to allocate 10% of treasury to community initiatives.",
-    votesFor: 150,
-    votesAgainst: 50,
-    deadline: new Date("2024-12-31"),
-  },
-  {
-    id: "2",
-    title: "Protocol Upgrade",
-    description: "Implement new security features in the voting mechanism.",
-    votesFor: 200,
-    votesAgainst: 25,
-    deadline: new Date("2024-12-25"),
-  },
-];
+import { supabase } from "@/integrations/supabase/client";
 
 const mockTransactions: BlockchainTransaction[] = [
   {
@@ -40,20 +25,63 @@ const mockTransactions: BlockchainTransaction[] = [
 ];
 
 const VotingDashboard = () => {
-  const [proposals, setProposals] = useState<Proposal[]>(mockProposals);
   const [transactions, setTransactions] = useState<BlockchainTransaction[]>(mockTransactions);
+  const queryClient = useQueryClient();
 
-  const handleVote = (proposalId: string, vote: "for" | "against") => {
-    setProposals(proposals.map(proposal => {
-      if (proposal.id === proposalId) {
-        return {
-          ...proposal,
-          votesFor: vote === "for" ? proposal.votesFor + 1 : proposal.votesFor,
-          votesAgainst: vote === "against" ? proposal.votesAgainst + 1 : proposal.votesAgainst,
-        };
+  // Fetch proposals
+  const { data: proposals = [], isLoading } = useQuery({
+    queryKey: ['proposals'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('proposals')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching proposals:', error);
+        toast.error('Failed to load proposals');
+        throw error;
       }
-      return proposal;
-    }));
+
+      return data.map(proposal => ({
+        ...proposal,
+        deadline: new Date(proposal.deadline),
+        created_at: proposal.created_at ? new Date(proposal.created_at) : undefined,
+        updated_at: proposal.updated_at ? new Date(proposal.updated_at) : undefined,
+      }));
+    },
+  });
+
+  // Vote mutation
+  const voteMutation = useMutation({
+    mutationFn: async ({ proposalId, vote }: { proposalId: string, vote: "for" | "against" }) => {
+      const column = vote === "for" ? "votes_for" : "votes_against";
+      const { data, error } = await supabase
+        .from('proposals')
+        .update({ [column]: supabase.rpc('increment') })
+        .eq('id', proposalId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error voting:', error);
+        throw error;
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['proposals'] });
+      toast.success('Vote recorded successfully');
+    },
+    onError: (error) => {
+      console.error('Voting failed:', error);
+      toast.error('Failed to record vote');
+    },
+  });
+
+  const handleVote = async (proposalId: string, vote: "for" | "against") => {
+    await voteMutation.mutateAsync({ proposalId, vote });
 
     // Add new transaction
     const newTransaction: BlockchainTransaction = {
@@ -67,13 +95,25 @@ const VotingDashboard = () => {
     setTransactions([newTransaction, ...transactions]);
   };
 
+  if (isLoading) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="text-center">Loading proposals...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-8">
       <div className="grid gap-6 md:grid-cols-2">
         {proposals.map((proposal) => (
           <ProposalCard
             key={proposal.id}
-            proposal={proposal}
+            proposal={{
+              ...proposal,
+              votesFor: proposal.votes_for,
+              votesAgainst: proposal.votes_against,
+            }}
             onVote={handleVote}
           />
         ))}

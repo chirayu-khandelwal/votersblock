@@ -109,11 +109,7 @@ const VotingDashboard = () => {
         {proposals.map((proposal) => (
           <ProposalCard
             key={proposal.id}
-            proposal={{
-              ...proposal,
-              votesFor: proposal.votes_for,
-              votesAgainst: proposal.votes_against,
-            }}
+            proposal={proposal}
             onVote={handleVote}
           />
         ))}

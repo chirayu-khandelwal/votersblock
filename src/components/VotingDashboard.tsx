@@ -1,26 +1,11 @@
+
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import ProposalCard from "./ProposalCard";
 import BlockchainDisplay from "./BlockchainDisplay";
 import type { Proposal, BlockchainTransaction } from "@/lib/types";
-
-const mockProposals: Proposal[] = [
-  {
-    id: "1",
-    title: "Community Fund Allocation",
-    description: "Proposal to allocate 10% of treasury to community initiatives.",
-    votesFor: 150,
-    votesAgainst: 50,
-    deadline: new Date("2024-12-31"),
-  },
-  {
-    id: "2",
-    title: "Protocol Upgrade",
-    description: "Implement new security features in the voting mechanism.",
-    votesFor: 200,
-    votesAgainst: 25,
-    deadline: new Date("2024-12-25"),
-  },
-];
+import { supabase } from "@/integrations/supabase/client";
 
 const mockTransactions: BlockchainTransaction[] = [
   {
@@ -40,32 +25,77 @@ const mockTransactions: BlockchainTransaction[] = [
 ];
 
 const VotingDashboard = () => {
-  const [proposals, setProposals] = useState<Proposal[]>(mockProposals);
-  const [transactions, setTransactions] = useState<BlockchainTransaction[]>(mockTransactions);
+  const [transactions] = useState<BlockchainTransaction[]>(mockTransactions);
+  const queryClient = useQueryClient();
+
+  // Fetch proposals
+  const { data: proposals = [], isLoading } = useQuery({
+    queryKey: ['proposals'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('proposals')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        toast.error('Error fetching proposals');
+        throw error;
+      }
+
+      return data.map(proposal => ({
+        ...proposal,
+        id: proposal.id,
+        deadline: new Date(proposal.deadline),
+      })) as Proposal[];
+    },
+  });
+
+  // Vote mutation
+  const voteMutation = useMutation({
+    mutationFn: async ({ proposalId, vote }: { proposalId: string; vote: "for" | "against" }) => {
+      const updateColumn = vote === "for" ? "votes_for" : "votes_against";
+      
+      const { data, error } = await supabase
+        .from('proposals')
+        .update({ [updateColumn]: supabase.rpc('increment') })
+        .eq('id', proposalId)
+        .select()
+        .single();
+
+      if (error) {
+        toast.error('Error casting vote');
+        throw error;
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['proposals'] });
+      toast.success('Vote cast successfully!');
+    },
+    onError: (error) => {
+      console.error('Error voting:', error);
+      toast.error('Failed to cast vote. Please try again.');
+    },
+  });
 
   const handleVote = (proposalId: string, vote: "for" | "against") => {
-    setProposals(proposals.map(proposal => {
-      if (proposal.id === proposalId) {
-        return {
-          ...proposal,
-          votesFor: vote === "for" ? proposal.votesFor + 1 : proposal.votesFor,
-          votesAgainst: vote === "against" ? proposal.votesAgainst + 1 : proposal.votesAgainst,
-        };
-      }
-      return proposal;
-    }));
-
-    // Add new transaction
-    const newTransaction: BlockchainTransaction = {
-      hash: `0x${Math.random().toString(16).slice(2)}`,
-      timestamp: new Date(),
-      voter: `0x${Math.random().toString(16).slice(2)}`,
-      proposalId,
-      vote,
-    };
-
-    setTransactions([newTransaction, ...transactions]);
+    voteMutation.mutate({ proposalId, vote });
   };
+
+  if (isLoading) {
+    return (
+      <div className="max-w-4xl mx-auto p-6 space-y-8">
+        <div className="grid gap-6 md:grid-cols-2">
+          {[1, 2].map((i) => (
+            <div key={i} className="animate-pulse">
+              <div className="h-48 bg-gray-200 rounded-lg"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-8">

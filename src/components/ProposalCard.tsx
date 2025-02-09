@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import VoteButton from "./VoteButton";
@@ -9,8 +10,8 @@ interface ProposalCardProps {
 }
 
 const ProposalCard = ({ proposal, onVote }: ProposalCardProps) => {
-  const totalVotes = proposal.votesFor + proposal.votesAgainst;
-  const forPercentage = totalVotes > 0 ? (proposal.votesFor / totalVotes) * 100 : 0;
+  const totalVotes = proposal.votes_for + proposal.votes_against;
+  const forPercentage = totalVotes > 0 ? (proposal.votes_for / totalVotes) * 100 : 0;
 
   return (
     <Card className="card-hover">
@@ -22,8 +23,8 @@ const ProposalCard = ({ proposal, onVote }: ProposalCardProps) => {
         
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span>For: {proposal.votesFor}</span>
-            <span>Against: {proposal.votesAgainst}</span>
+            <span>For: {proposal.votes_for}</span>
+            <span>Against: {proposal.votes_against}</span>
           </div>
           <Progress value={forPercentage} className="h-2" />
         </div>
@@ -40,7 +41,7 @@ const ProposalCard = ({ proposal, onVote }: ProposalCardProps) => {
         </div>
 
         <p className="text-sm text-muted-foreground text-center">
-          Deadline: {proposal.deadline.toLocaleDateString()}
+          Deadline: {new Date(proposal.deadline).toLocaleDateString()}
         </p>
       </CardContent>
     </Card>

@@ -6,6 +6,7 @@ export interface Proposal {
   votesFor: number;
   votesAgainst: number;
   deadline: Date;
+  contractId?: string; // ID on the blockchain
 }
 
 export interface BlockchainTransaction {
@@ -14,4 +15,11 @@ export interface BlockchainTransaction {
   voter: string;
   proposalId: string;
   vote: "for" | "against";
+  confirmed?: boolean;
+}
+
+export interface Web3State {
+  isConnected: boolean;
+  address: string | null;
+  chainId: number | null;
 }

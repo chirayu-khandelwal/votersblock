@@ -1,3 +1,4 @@
+
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { BlockchainTransaction } from "@/lib/types";
 
@@ -18,10 +19,18 @@ const BlockchainDisplay = ({ transactions }: BlockchainDisplayProps) => {
             >
               <div className="flex justify-between text-muted-foreground">
                 <span>{tx.timestamp.toLocaleTimeString()}</span>
-                <span>{tx.vote.toUpperCase()}</span>
+                <span className="flex items-center gap-2">
+                  {tx.vote.toUpperCase()}
+                  {tx.confirmed && (
+                    <span className="text-emerald-500">✓</span>
+                  )}
+                </span>
               </div>
               <div className="truncate text-primary">
                 {tx.hash}
+              </div>
+              <div className="text-xs text-muted-foreground truncate">
+                From: {tx.voter}
               </div>
             </div>
           ))}

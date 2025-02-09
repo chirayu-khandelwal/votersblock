@@ -1,76 +1,85 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import ProposalCard from "./ProposalCard";
 import BlockchainDisplay from "./BlockchainDisplay";
+import { supabase } from "@/integrations/supabase/client";
 import type { Proposal, BlockchainTransaction } from "@/lib/types";
 
-const mockProposals: Proposal[] = [
-  {
-    id: "1",
-    title: "Community Fund Allocation",
-    description: "Proposal to allocate 10% of treasury to community initiatives.",
-    votesFor: 150,
-    votesAgainst: 50,
-    deadline: new Date("2024-12-31"),
-  },
-  {
-    id: "2",
-    title: "Protocol Upgrade",
-    description: "Implement new security features in the voting mechanism.",
-    votesFor: 200,
-    votesAgainst: 25,
-    deadline: new Date("2024-12-25"),
-  },
-];
-
-const mockTransactions: BlockchainTransaction[] = [
-  {
-    hash: "0x1234...5678",
-    timestamp: new Date(),
-    voter: "0xabcd...efgh",
-    proposalId: "1",
-    vote: "for",
-  },
-  {
-    hash: "0x8765...4321",
-    timestamp: new Date(),
-    voter: "0xijkl...mnop",
-    proposalId: "2",
-    vote: "against",
-  },
-];
-
 const VotingDashboard = () => {
-  const [proposals, setProposals] = useState<Proposal[]>(mockProposals);
-  const [transactions, setTransactions] = useState<BlockchainTransaction[]>(mockTransactions);
+  const queryClient = useQueryClient();
+  const [transactions, setTransactions] = useState<BlockchainTransaction[]>([]);
 
-  const handleVote = (proposalId: string, vote: "for" | "against") => {
-    setProposals(proposals.map(proposal => {
-      if (proposal.id === proposalId) {
-        return {
-          ...proposal,
-          votesFor: vote === "for" ? proposal.votesFor + 1 : proposal.votesFor,
-          votesAgainst: vote === "against" ? proposal.votesAgainst + 1 : proposal.votesAgainst,
-        };
+  // Fetch proposals from Supabase
+  const { data: proposals, isLoading, error } = useQuery({
+    queryKey: ['proposals'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('proposals')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching proposals:', error);
+        throw error;
       }
-      return proposal;
-    }));
 
-    // Add new transaction
-    const newTransaction: BlockchainTransaction = {
-      hash: `0x${Math.random().toString(16).slice(2)}`,
-      timestamp: new Date(),
-      voter: `0x${Math.random().toString(16).slice(2)}`,
-      proposalId,
-      vote,
-    };
+      return data as Proposal[];
+    }
+  });
 
-    setTransactions([newTransaction, ...transactions]);
+  useEffect(() => {
+    if (error) {
+      toast.error("Failed to load proposals");
+    }
+  }, [error]);
+
+  const handleVote = async (proposalId: string, vote: "for" | "against") => {
+    try {
+      const updateColumn = vote === "for" ? "votes_for" : "votes_against";
+      
+      const { data, error } = await supabase
+        .from('proposals')
+        .update({ [updateColumn]: supabase.rpc('increment', { row_id: proposalId, column_name: updateColumn }) })
+        .eq('id', proposalId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Add new transaction
+      const newTransaction: BlockchainTransaction = {
+        hash: `0x${Math.random().toString(16).slice(2)}`,
+        timestamp: new Date(),
+        voter: `0x${Math.random().toString(16).slice(2)}`,
+        proposalId,
+        vote,
+      };
+
+      setTransactions([newTransaction, ...transactions]);
+      
+      // Invalidate and refetch proposals
+      queryClient.invalidateQueries({ queryKey: ['proposals'] });
+      toast.success(`Vote ${vote} recorded successfully`);
+    } catch (error) {
+      console.error('Error voting:', error);
+      toast.error("Failed to record vote");
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="text-center">Loading proposals...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-8">
       <div className="grid gap-6 md:grid-cols-2">
-        {proposals.map((proposal) => (
+        {proposals?.map((proposal) => (
           <ProposalCard
             key={proposal.id}
             proposal={proposal}

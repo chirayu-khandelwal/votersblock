@@ -16,6 +16,7 @@ const VotingDashboard = () => {
     queryKey: ['proposals'],
     queryFn: async () => {
       const { data, error } = await supabase
+        .schema('api')
         .from('proposals')
         .select('*')
         .order('created_at', { ascending: false });
@@ -40,6 +41,7 @@ const VotingDashboard = () => {
       const updateColumn = vote === "for" ? "votes_for" : "votes_against";
       
       const { data, error } = await supabase
+        .schema('api')
         .from('proposals')
         .update({ [updateColumn]: supabase.rpc('increment', { row_id: proposalId, column_name: updateColumn }) })
         .eq('id', proposalId)

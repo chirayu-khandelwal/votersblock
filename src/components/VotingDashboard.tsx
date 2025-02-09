@@ -6,6 +6,12 @@ import BlockchainDisplay from "./BlockchainDisplay";
 import { getVotingContract } from "@/lib/contracts/VotingContract";
 import type { Proposal, BlockchainTransaction, Web3State } from "@/lib/types";
 
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
+
 const VotingDashboard = () => {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [transactions, setTransactions] = useState<BlockchainTransaction[]>([]);
@@ -21,7 +27,7 @@ const VotingDashboard = () => {
 
   const connectWallet = async () => {
     try {
-      if (typeof window.ethereum === "undefined") {
+      if (typeof window === "undefined" || !window.ethereum) {
         toast.error("Please install MetaMask to use this application");
         return;
       }
@@ -29,9 +35,24 @@ const VotingDashboard = () => {
       const accounts = await window.ethereum.request({ 
         method: "eth_requestAccounts" 
       });
+
       const chainId = await window.ethereum.request({ 
         method: "eth_chainId" 
       });
+
+      // Check if we're on Sepolia testnet
+      if (chainId !== "0xaa36a7") {
+        toast.error("Please switch to Sepolia testnet");
+        try {
+          await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: "0xaa36a7" }],
+          });
+        } catch (error) {
+          toast.error("Failed to switch to Sepolia testnet");
+          return;
+        }
+      }
 
       setWeb3State({
         isConnected: true,
@@ -45,6 +66,11 @@ const VotingDashboard = () => {
           ...prev,
           address: accounts[0],
         }));
+      });
+
+      // Listen for chain changes
+      window.ethereum.on("chainChanged", (chainId: string) => {
+        window.location.reload();
       });
 
       loadProposals();

@@ -1,4 +1,3 @@
-
 export interface Proposal {
   id: string;
   title: string;
@@ -6,8 +5,6 @@ export interface Proposal {
   votesFor: number;
   votesAgainst: number;
   deadline: Date;
-  created_at?: Date;
-  updated_at?: Date;
 }
 
 export interface BlockchainTransaction {
